@@ -85,15 +85,44 @@ typedef uint32_t Elf_MemSz;
 
 typedef unsigned char mem_t;
 
-#define DBG_MSG(format, ...) printf (format "\n", ##__VA_ARGS__ )
+// Proof that macros lead to bad stuffs
+#define DBG_MSG(format, ...) printf(format "\n", ##__VA_ARGS__ )
 #define CHECK_ARGS_RET(condition, ret) \
-do { \
-  if (!(condition)) { \
-    DBG_MSG("Bad arguments."); \
-    return (ret); \
-  } \
-} while(0)
+  do { \
+    if (!(condition)) { \
+      DBG_MSG("Bad arguments."); \
+      return (ret); \
+    } \
+  } while(0)
 #define CHECK_ARGS(condition) CHECK_ARGS_RET(condition, ERROR_BAD_ARGS)
+
+
+// Using this macro leads to loss of information on the error
+#define RETURN_NULL_ON_ERROR(expression)  \
+  do { \
+    if ((expression) != SUCCESS) { \
+      return NULL; \
+    } \
+  } while (0)
+
+#define ON_ERROR(expression, action) \
+  do { \
+    if ((result = (expression)) != SUCCESS) { \
+      action; \
+    } \
+  } while (0)
+#define RETURN_ON_NULL(expression) \
+  do { \
+    if (!(expression)) return ERROR_GENERIC; \
+  } while(0)
+
+// Assumes a "result" variable has been declared
+#define RETURN_ON_ERROR(expression) ON_ERROR(expression, return result)
+
+// Also assumes in the function there's a "fail" label
+#define FAIL_ON_ERROR(expression) ON_ERROR(expression, goto fail)
+
+
 
 #define STR_PAR(str) (str), (sizeof(str))
 
@@ -170,7 +199,7 @@ int eld_init() {
   SLIST_INIT(&elves);
 
   elf_object_t *main_elf = eld_elf_object_new(STR_PAR("main"));
-  if (!main_elf) return ERROR_GENERIC;
+  RETURN_ON_NULL(main_elf);
   SLIST_INSERT_HEAD(&elves, main_elf, next);
 
   return SUCCESS;
@@ -566,6 +595,7 @@ static int eld_elf_object_handle_dyn(elf_object_t *this) {
 
       // Look for the library in the already loaded ELVes
       elf_object_t *loaded_elf = NULL;
+
       SLIST_FOREACH(loaded_elf, &elves, next) {
         if (loaded_elf->soname &&
             strncmp(loaded_elf->soname, needed_lib_name, 1024) == 0) {
@@ -614,6 +644,7 @@ static int eld_elf_object_close(elf_object_t *this) {
   CHECK_ARGS(this);
 
   elf_object_t *loaded_elf = NULL;
+
   SLIST_FOREACH(loaded_elf, &elves, next) {
     if (loaded_elf == this) {
       // TODO: this is not efficient
@@ -638,28 +669,24 @@ static int eld_open(mem_t *library, elf_object_t **library_descriptor) {
   elf_object_t *library_elf = eld_elf_object_new(NULL, 0);
   library_elf->file_address = library;
 
-  result = eld_elf_object_check(library_elf);
-  if (result != SUCCESS) goto fail;
+  FAIL_ON_ERROR(eld_elf_object_check(library_elf));
 
-  result = eld_elf_object_load(library_elf);
-  if (result != SUCCESS) return result;
+  FAIL_ON_ERROR(eld_elf_object_load(library_elf));
 
   if (library_elf->dynamic_info_section) {
-    result = eld_elf_object_handle_dyn(library_elf);
-    if (result != SUCCESS) return result;
+    FAIL_ON_ERROR(eld_elf_object_handle_dyn(library_elf));
   } else {
     DBG_MSG("Not a dynamic library.");
-    return ERROR_UNEXPECTED_FORMAT;
+    result = ERROR_UNEXPECTED_FORMAT;
+    goto fail;
   }
 
   *library_descriptor = library_elf;
   return SUCCESS;
 
 fail:
-
   if (library_elf) eld_elf_object_destroy(library_elf);
   return result;
-
 }
 
 void *dlopen(mem_t *filename, int flag) {
@@ -670,9 +697,8 @@ void *dlopen(mem_t *filename, int flag) {
   mem_t *library = (unsigned char *) filename;
   elf_object_t *library_descriptor = NULL;
 
-  result = eld_open(library, &library_descriptor);
+  RETURN_NULL_ON_ERROR(eld_open(library, &library_descriptor));
   // TODO: implement dlerror
-  if (result != SUCCESS) return NULL;
 
   return library_descriptor;
 }
@@ -686,17 +712,18 @@ int dlclose(void *handle) {
 int main() {
   int result = SUCCESS;
 
-  // TODO: factorize in macro?
-  if ((result = eld_init()) != SUCCESS) return result;
+  // Initialize the ELD library
+  RETURN_ON_ERROR(eld_init());
 
-  void *libmy_handle = dlopen(libmy, 0);
-  if (!result) return ERROR_GENERIC;
+  // Load a library
+  void *libmy_handle = NULL;
+  RETURN_ON_NULL(libmy_handle = dlopen(libmy, 0));
 
-  result = dlclose(libmy_handle);
-  if (result != SUCCESS) return result;
+  // Close the loaded library
+  RETURN_ON_ERROR(dlclose(libmy_handle));
 
-  result = eld_finish();
-  if (result != SUCCESS) return result;
+  // Finalize the ELD library
+  RETURN_ON_ERROR(eld_finish());
 
   return result;
 }
