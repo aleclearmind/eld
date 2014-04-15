@@ -1,4 +1,3 @@
-// TODO: factorize hash
 // TODO: declare we use addends in in symbol table
 // TODO: copy sys/queue.h
 // TODO: copy elf.h
@@ -165,6 +164,18 @@ typedef struct elf_object {
 } elf_object_t;
 
 typedef unsigned long elf_hash_t;
+
+elf_hash_t eld_elf_hash(char *cursor) {
+    elf_hash_t result;
+    while (*cursor) {
+      elf_hash_t tmp;
+      result = (result << 4) + *cursor++;
+      if ((tmp = result & 0xf0000000))
+        result ^= tmp >> 24;
+      result &= ~tmp;
+    }
+    return result;
+}
 
 /**
  * Add an ELF to the list
@@ -359,15 +370,7 @@ static int eld_elf_object_relocate(elf_object_t *this,
     patch_location = (Elf_Addr *) (reloc->r_offset + this->elf_offset);
 
     // Compute the hash
-    elf_hash_t hash;
-    char *cursor = name;
-    while (*cursor) {
-      elf_hash_t tmp;
-      hash = (hash << 4) + *cursor++;
-      if ((tmp = hash & 0xf0000000))
-        hash ^= tmp >> 24;
-      hash &= ~tmp;
-    }
+    elf_hash_t hash = eld_elf_hash(name);
 
     // Look for the symbol
     Elf_Sym *match = NULL;
