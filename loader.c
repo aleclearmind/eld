@@ -1,5 +1,4 @@
 // TODO: factorize hash
-// TODO: check pointers
 // TODO: declare we use addends in in symbol table
 // TODO: copy sys/queue.h
 // TODO: copy elf.h
@@ -87,6 +86,14 @@ typedef uint32_t Elf_MemSz;
 typedef unsigned char mem_t;
 
 #define DBG_MSG(format, ...) printf (format "\n", ##__VA_ARGS__ )
+#define CHECK_ARGS_RET(condition, ret) \
+do { \
+  if (!(condition)) { \
+    DBG_MSG("Bad arguments."); \
+    return (ret); \
+  } \
+} while(0)
+#define CHECK_ARGS(condition) CHECK_ARGS_RET(condition, ERROR_BAD_ARGS)
 
 #define STR_PAR(str) (str), (sizeof(str))
 
@@ -190,10 +197,7 @@ static int eld_elf_object_get_symbol(elf_object_t *this, char *target_name,
                                      Elf_Sym **target_symbol,
                                      Elf_Sym **weak_symbol,
                                      elf_object_t **weak_elf) {
-  if (!(this && target_name && target_symbol && weak_symbol && weak_elf)) {
-    DBG_MSG("A pointer argument is NULL.");
-    return ERROR_BAD_ARGS;
-  }
+  CHECK_ARGS(this && target_name && target_symbol && weak_symbol && weak_elf);
   // TODO: lookup cache
   // TOOD: gnu hash
 
@@ -247,10 +251,7 @@ static int eld_elf_object_find_symbol(elf_object_t *this, char *name,
                                       elf_hash_t hash,
                                       Elf_Sym **match,
                                       elf_object_t **match_elf) {
-  if (!(this && name && match && match_elf)) {
-    DBG_MSG("A pointer argument is NULL.");
-    return ERROR_BAD_ARGS;
-  }
+  CHECK_ARGS(this && name && match && match_elf);
 
   // TODO: implement full search in the right order
   // This is a simplified search order, first in the current library, then in
@@ -296,10 +297,7 @@ static int eld_elf_object_find_symbol(elf_object_t *this, char *name,
  */
 static int eld_elf_object_relocate(elf_object_t *this,
                                    int reloc_index, int reloc_size_index) {
-  if (!(this)) {
-    DBG_MSG("A pointer argument is NULL.");
-    return ERROR_BAD_ARGS;
-  }
+  CHECK_ARGS(this);
 
   // We only support relocation with addend
   int reloc_count =
@@ -399,10 +397,7 @@ static int eld_elf_object_relocate(elf_object_t *this,
  * @return
  */
 static int eld_elf_object_check(elf_object_t *this) {
-  if (!(this && this->file_address)) {
-    DBG_MSG("A pointer argument is NULL.");
-    return ERROR_BAD_ARGS;
-  }
+  CHECK_ARGS(this && this->file_address);
 
   Elf_Ehdr *elf_header = (Elf_Ehdr *) this->file_address;
 
@@ -430,10 +425,7 @@ static int eld_elf_object_check(elf_object_t *this) {
  * @return
  */
 static int eld_elf_object_load(elf_object_t *this) {
-  if (!(this && this->file_address)) {
-    DBG_MSG("A pointer argument is NULL.");
-    return ERROR_BAD_ARGS;
-  }
+  CHECK_ARGS(this && this->file_address);
 
   Elf_Ehdr *elf_header = (Elf_Ehdr *) this->file_address;
   Elf_Phdr *program_header_begin =
@@ -513,10 +505,7 @@ static int eld_elf_object_load(elf_object_t *this) {
  * @return
  */
 static int eld_elf_object_handle_dyn(elf_object_t *this) {
-  if (!(this && this->dynamic_info_section)) {
-    DBG_MSG("A pointer argument is NULL.");
-    return ERROR_BAD_ARGS;
-  }
+  CHECK_ARGS(this && this->dynamic_info_section);
 
   // First pass over the dynamic entries
   for (Elf_Dyn *dynamic_info_entry = this->dynamic_info_section;
@@ -622,10 +611,7 @@ static int eld_elf_object_handle_dyn(elf_object_t *this) {
 }
 
 static int eld_elf_object_close(elf_object_t *this) {
-  if (!(this)) {
-    DBG_MSG("A pointer argument is NULL.");
-    return ERROR_BAD_ARGS;
-  }
+  CHECK_ARGS(this);
 
   elf_object_t *loaded_elf = NULL;
   SLIST_FOREACH(loaded_elf, &elves, next) {
@@ -646,10 +632,7 @@ static int eld_elf_object_close(elf_object_t *this) {
  * @return
  */
 static int eld_open(mem_t *library, elf_object_t **library_descriptor) {
-  if (!(library && library_descriptor)) {
-    DBG_MSG("A pointer argument is NULL.");
-    return ERROR_BAD_ARGS;
-  }
+  CHECK_ARGS(library && library_descriptor);
 
   int result = SUCCESS;
   elf_object_t *library_elf = eld_elf_object_new(NULL, 0);
@@ -680,10 +663,7 @@ fail:
 }
 
 void *dlopen(mem_t *filename, int flag) {
-  if (!(filename)) {
-    DBG_MSG("A pointer argument is NULL.");
-    return NULL;
-  }
+  CHECK_ARGS_RET(filename, NULL);
 
   // TODO: flags
   int result = SUCCESS;
@@ -698,10 +678,7 @@ void *dlopen(mem_t *filename, int flag) {
 }
 
 int dlclose(void *handle) {
-  if (!(handle)) {
-    DBG_MSG("A pointer argument is NULL.");
-    return ERROR_BAD_ARGS;
-  }
+  CHECK_ARGS(handle);
 
   return eld_elf_object_close(handle);
 }
