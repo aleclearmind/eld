@@ -85,7 +85,8 @@ typedef uint32_t Elf_MemSz;
 typedef unsigned char mem_t;
 
 // Proof that macros lead to bad stuffs
-#define DBG_MSG(format, ...) printf(format "\n", ##__VA_ARGS__ )
+#define DBG_MSG(format, ...) printf("[%s:%d] " format "\n", __FILE__, __LINE__, \
+    ##__VA_ARGS__ )
 #define CHECK_ARGS_RET(condition, ret) \
   do { \
     if (!(condition)) { \
@@ -165,16 +166,22 @@ typedef struct elf_object {
 
 typedef unsigned long elf_hash_t;
 
+// Linker generated symbols
+extern Elf_Dyn _DYNAMIC;
+
+// Declarations
+static int eld_elf_object_handle_dyn(elf_object_t *this);
+
 elf_hash_t eld_elf_hash(char *cursor) {
-    elf_hash_t result;
-    while (*cursor) {
-      elf_hash_t tmp;
-      result = (result << 4) + *cursor++;
-      if ((tmp = result & 0xf0000000))
-        result ^= tmp >> 24;
-      result &= ~tmp;
-    }
-    return result;
+  elf_hash_t result;
+  while (*cursor) {
+    elf_hash_t tmp;
+    result = (result << 4) + *cursor++;
+    if ((tmp = result & 0xf0000000))
+      result ^= tmp >> 24;
+    result &= ~tmp;
+  }
+  return result;
 }
 
 /**
@@ -207,10 +214,15 @@ static void eld_elf_object_destroy(elf_object_t *this) {
  * Initialize ELF object list
  */
 int eld_init() {
+  int result = SUCCESS;
+  DBG_MSG("Initializing ELD dynamic loader");
+
   SLIST_INIT(&elves);
 
   elf_object_t *main_elf = eld_elf_object_new(STR_PAR("main"));
   RETURN_ON_NULL(main_elf);
+  main_elf->dynamic_info_section = &_DYNAMIC;
+  RETURN_ON_ERROR(eld_elf_object_handle_dyn(main_elf));
   SLIST_INSERT_HEAD(&elves, main_elf, next);
 
   return SUCCESS;
@@ -237,7 +249,8 @@ static int eld_elf_object_get_symbol(elf_object_t *this, char *target_name,
                                      Elf_Sym **target_symbol,
                                      Elf_Sym **weak_symbol,
                                      elf_object_t **weak_elf) {
-  CHECK_ARGS(this && target_name && target_symbol && weak_symbol && weak_elf);
+  CHECK_ARGS(this && target_name && target_symbol && weak_symbol && weak_elf &&
+             this->dynamic_info.hash_buckets && this->dynamic_info.hash_chains);
   // TODO: lookup cache
   // TOOD: gnu hash
 
@@ -299,29 +312,47 @@ static int eld_elf_object_find_symbol(elf_object_t *this, char *name,
 
   Elf_Sym *weak_match = NULL;
   elf_object_t *weak_match_elf = NULL;
-  if (eld_elf_object_get_symbol(this, name, hash, match,
-                                &weak_match, &weak_match_elf) == SUCCESS) {
+  int result = SUCCESS;
+  DBG_MSG("Looking for symbol \"%s\" in the library \"%s\" itself", name,
+          this->soname);
+  if ((result =
+       eld_elf_object_get_symbol(this, name, hash, match,
+                                 &weak_match, &weak_match_elf)) == SUCCESS) {
     *match_elf = this;
     DBG_MSG("Symbol \"%s\" found in the library \"%s\" itself", name,
             this->soname);
   } else {
+    if (result != ERROR_SYMBOL_NOT_FOUND && result != ERROR_WEAK_RESULT) {
+      return result;
+    }
     elf_object_t *loaded_elf = NULL;
 
     SLIST_FOREACH(loaded_elf, &elves, next) {
-      if (eld_elf_object_get_symbol(loaded_elf, name, hash, match,
-                                    &weak_match,
-                                    &weak_match_elf) == SUCCESS) {
+      DBG_MSG("Looking for symbol \"%s\" in the \"%s\" library", name,
+              loaded_elf->soname);
+      if ((result = eld_elf_object_get_symbol(loaded_elf, name, hash, match,
+                                              &weak_match,
+                                              &weak_match_elf)) == SUCCESS) {
         *match_elf = loaded_elf;
         DBG_MSG("Symbol \"%s\" found in the \"%s\" library", name,
                 loaded_elf->soname);
         break;
+      } else if (result != ERROR_SYMBOL_NOT_FOUND &&
+                 result != ERROR_WEAK_RESULT) {
+        return result;
       }
     }
   }
 
   if (!*match && weak_match) {
+    DBG_MSG("Symbol \"%s\" has a weak match in \"%s\" library", name,
+            weak_match_elf->soname);
     *match = weak_match;
     *match_elf = weak_match_elf;
+  }
+
+  if (!match) {
+    DBG_MSG("Symbol \"%s\" not found", name);
   }
 
   return match ? SUCCESS : ERROR_SYMBOL_NOT_FOUND;
@@ -338,6 +369,7 @@ static int eld_elf_object_find_symbol(elf_object_t *this, char *name,
 static int eld_elf_object_relocate(elf_object_t *this,
                                    int reloc_index, int reloc_size_index) {
   CHECK_ARGS(this);
+  int result = SUCCESS;
 
   // We only support relocation with addend
   int reloc_count =
@@ -346,6 +378,8 @@ static int eld_elf_object_relocate(elf_object_t *this,
           this->dynamic_info.relative_reloc_count : 0;
   Elf_Rela *first_reloc =
           (Elf_Rela *) this->dynamic_info.basic[reloc_index].d_ptr;
+
+  DBG_MSG("Relocating section %d (size: %d)", reloc_index, reloc_count);
 
   int i = 0;
   Elf_Rela *reloc = first_reloc;
@@ -376,11 +410,8 @@ static int eld_elf_object_relocate(elf_object_t *this,
     Elf_Sym *match = NULL;
     elf_object_t *match_elf = NULL;
 
-    if (eld_elf_object_find_symbol(this, name, hash, &match,
-                                   &match_elf) != SUCCESS) {
-      DBG_MSG("Couldn't find symbol \"%s\".", name);
-      return ERROR_SYMBOL_NOT_FOUND;
-    }
+    RETURN_ON_ERROR(eld_elf_object_find_symbol(this, name, hash, &match,
+                                               &match_elf));
 
     Elf_Addr symbol_address = match->st_value;
 
@@ -495,12 +526,15 @@ static int eld_elf_object_load(elf_object_t *this) {
 
   Elf_MemSz to_allocate = max_address - min_address;
   this->load_address = malloc(to_allocate);
-  this->elf_offset = this->load_address - min_address;
 
   if (!this->load_address) {
     DBG_MSG("Cannot allocate the necessary memory (0x%x bytes)", to_allocate);
     return ERROR_OUT_OF_MEMORY;
+  } else {
+    DBG_MSG("The library has been loaded at %p", this->load_address);
   }
+
+  this->elf_offset = this->load_address - min_address;
 
   // Load from file
   for (Elf_Phdr *program_header = program_header_begin;
@@ -524,6 +558,10 @@ static int eld_elf_object_load(elf_object_t *this) {
     }
   }
 
+  // Update pointers
+  this->dynamic_info_section = (Elf_Dyn *) (this->elf_offset +
+                                            (Elf_Addr) this->dynamic_info_section);
+
   return SUCCESS;
 }
 
@@ -538,6 +576,8 @@ static int eld_elf_object_load(elf_object_t *this) {
  */
 static int eld_elf_object_handle_dyn(elf_object_t *this) {
   CHECK_ARGS(this && this->dynamic_info_section);
+
+  int result = SUCCESS;
 
   // First pass over the dynamic entries
   for (Elf_Dyn *dynamic_info_entry = this->dynamic_info_section;
@@ -562,8 +602,6 @@ static int eld_elf_object_handle_dyn(elf_object_t *this) {
     if (this->dynamic_info.basic[to_rebase[counter]].d_ptr) {
       this->dynamic_info.basic[to_rebase[counter]].d_ptr +=
               (Elf_Addr) this->elf_offset;
-      DBG_MSG("%d @ 0x%x", to_rebase[counter],
-              this->dynamic_info.basic[to_rebase[counter]].d_ptr);
     }
   }
 
@@ -574,8 +612,7 @@ static int eld_elf_object_handle_dyn(elf_object_t *this) {
   if (this->dynamic_info.basic[DT_SONAME].d_ptr) {
     this->dynamic_info.basic[DT_SONAME].d_ptr += (Elf_Addr) this->strtab;
     this->soname = (char *) this->dynamic_info.basic[DT_SONAME].d_ptr;
-    DBG_MSG("%d @ 0x%p: %s", DT_SONAME, this->soname,
-            (char *) this->soname);
+    DBG_MSG("Loading \"%s\"", (char *) this->soname);
   }
 
   if (this->dynamic_info.basic[DT_RPATH].d_ptr) {
@@ -631,10 +668,10 @@ static int eld_elf_object_handle_dyn(elf_object_t *this) {
   }
 
   // TODO: handle errors
-  eld_elf_object_relocate(this, DT_REL, DT_RELSZ);
-  eld_elf_object_relocate(this, DT_RELA, DT_RELASZ);
+  RETURN_ON_ERROR(eld_elf_object_relocate(this, DT_REL, DT_RELSZ));
+  RETURN_ON_ERROR(eld_elf_object_relocate(this, DT_RELA, DT_RELASZ));
   // TODO: implement lazy loading (see _dl_md_reloc_got)
-  eld_elf_object_relocate(this, DT_JMPREL, DT_PLTRELSZ);
+  RETURN_ON_ERROR(eld_elf_object_relocate(this, DT_JMPREL, DT_PLTRELSZ));
 
   t_init_function init_function =
           (t_init_function) this->dynamic_info.basic[DT_INIT].d_ptr;
@@ -693,6 +730,7 @@ fail:
 }
 
 void *dlopen(mem_t *filename, int flag) {
+  DBG_MSG("dlopen(%p, %x)", filename, flag);
   CHECK_ARGS_RET(filename, NULL);
 
   // TODO: flags
