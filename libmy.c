@@ -1,7 +1,8 @@
 static int counter = 42;
 extern int your();
 
-int asdomare() {
-    your();
-    return counter++;
+__attribute__((constructor))
+int my() {
+  int dudu = 0xDEAD;
+  return your() + counter++;
 }

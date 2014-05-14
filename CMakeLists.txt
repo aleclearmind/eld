@@ -18,15 +18,30 @@ include_directories("${PROJECT_BINARY_DIR}")
 set(OR1K_SIM_PATH "or32-elf-sim" CACHE FILEPATH "Path to the OR1K simulator")
 configure_file(sim.cfg sim.cfg COPYONLY)
 
-add_custom_command(
-	OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/libmy.so.h
-	COMMAND bin2c libmy.so -n libmy > libmy.so.h
-)
-add_custom_target(libmy_header DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/libmy.so.h)
-#set(CMAKE_C_COMPILE_OPTIONS_PIC "")
+# Generate .h files to embed shared objects
 
-# Test dynamic library
+# libmy.so
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/libmy.so.h
+  COMMAND xxd -i libmy.so > libmy.so.h
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/libmy.so
+)
+add_custom_target(libmy_header
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/libmy.so.h)
+
+# libyour.so
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/libyour.so.h
+  COMMAND xxd -i libyour.so > libyour.so.h
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/libyour.so
+)
+add_custom_target(libyour_header
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/libyour.so.h)
+
+# Test dynamic libraries
+add_library(your SHARED libyour.c)
 add_library(my SHARED libmy.c)
+target_link_libraries(my your)
 
 # Loader
 add_executable(loader loader.c)
@@ -38,6 +53,9 @@ add_custom_target(loader_sim_debug COMMAND ${OR1K_SIM_PATH} -f sim.cfg --srv=900
 # Dependencies
 add_dependencies(loader_sim loader)
 add_dependencies(loader_sim_debug loader)
+
 add_dependencies(loader libmy_header)
 add_dependencies(libmy_header my)
 
+add_dependencies(loader libyour_header)
+add_dependencies(libyour_header your)

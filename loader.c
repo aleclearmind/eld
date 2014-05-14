@@ -11,6 +11,7 @@
 #include <sys/queue.h>
 
 #include "libmy.so.h"
+#include "libyour.so.h"
 
 // OR1K uses reloc with addend
 #define ELF_USES_RELOCA
@@ -793,12 +794,21 @@ int main() {
   // Initialize the ELD library
   RETURN_ON_ERROR(eld_init());
 
-  // Load a library
-  void *libmy_handle = NULL;
-  RETURN_ON_NULL(libmy_handle = dlopen(libmy, 0));
+  // Load libraries
+  void *libyour_handle = NULL;
+  RETURN_ON_NULL(libyour_handle = dlopen(libyour_so, 0));
 
-  // Close the loaded library
+  void *libmy_handle = NULL;
+  RETURN_ON_NULL(libmy_handle = dlopen(libmy_so, 0));
+
+  typedef int (*myfunc_ptr)();
+  myfunc_ptr myfunc = NULL;
+  myfunc = dlsym(NULL, "my");
+  printf("%d\n", myfunc());
+
+  // Close the loaded libraries
   RETURN_ON_ERROR(dlclose(libmy_handle));
+  RETURN_ON_ERROR(dlclose(libyour_handle));
 
   // Finalize the ELD library
   RETURN_ON_ERROR(eld_finish());
