@@ -169,7 +169,7 @@ extern Elf_Dyn _DYNAMIC;
 static int eld_elf_object_handle_dyn(elf_object_t *this);
 
 elf_hash_t eld_elf_hash(char *cursor) {
-  elf_hash_t result;
+  elf_hash_t result = 0;
   while (*cursor) {
     elf_hash_t tmp;
     result = (result << 4) + *cursor++;
