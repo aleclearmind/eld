@@ -1,5 +1,6 @@
 // TODO: declare we use addends in in symbol table
 // TODO: copy sys/queue.h
+// TODO: split me
 
 #include <stdint.h>
 #include <string.h>
@@ -50,7 +51,6 @@
 #define ERROR_WEAK_RESULT 6
 #define ERROR_SYMBOL_NOT_FOUND 7
 #define ERROR_UNKNOWN_RELOCATION_TYPE 8
-
 
 // Things specific to our architecture
 
@@ -119,8 +119,6 @@ typedef unsigned char mem_t;
 // Also assumes in the function there's a "fail" label
 #define FAIL_ON_ERROR(expression) ON_ERROR(expression, goto fail)
 
-
-
 #define STR_PAR(str) (str), (sizeof(str))
 
 typedef Elf_Addr Elf_Addr_Unaligned __attribute__((aligned(1)));
@@ -142,8 +140,6 @@ typedef struct {
 } dynamic_info_t;
 
 
-typedef SLIST_HEAD(elf_object_list_head, elf_object) elf_object_list_head_t;
-elf_object_list_head_t elves;
 
 typedef struct elf_object {
   mem_t *file_address;
@@ -160,6 +156,9 @@ typedef struct elf_object {
   dynamic_info_t dynamic_info;
   SLIST_ENTRY(elf_object) next;
 } elf_object_t;
+
+typedef SLIST_HEAD(elf_object_list_head, elf_object) elf_object_list_head_t;
+elf_object_list_head_t elves;
 
 typedef unsigned long elf_hash_t;
 
@@ -348,9 +347,7 @@ static int eld_elf_object_find_symbol(elf_object_t *this, char *name,
     *match_elf = weak_match_elf;
   }
 
-  if (!match) {
-    DBG_MSG("Symbol \"%s\" not found", name);
-  }
+  if (!match) DBG_MSG("Symbol \"%s\" not found", name);
 
   return match ? SUCCESS : ERROR_SYMBOL_NOT_FOUND;
 }
@@ -410,7 +407,7 @@ static int eld_elf_object_relocate(elf_object_t *this,
     RETURN_ON_ERROR(eld_elf_object_find_symbol(this, name, hash, &match,
                                                &match_elf));
 
-    Elf_Addr symbol_address = match->st_value;
+    Elf_Addr symbol_address = (Elf_Addr) (match_elf->elf_offset + match->st_value);
 
     switch (type) {
       case R_OR1K_NONE:
@@ -525,7 +522,8 @@ static int eld_elf_object_load(elf_object_t *this) {
   this->load_address = malloc(to_allocate);
 
   if (!this->load_address) {
-    DBG_MSG("Cannot allocate the necessary memory (0x%x bytes)", to_allocate);
+    DBG_MSG("Cannot allocate the necessary memory (0x%x bytes)",
+	    (unsigned int) to_allocate);
     return ERROR_OUT_OF_MEMORY;
   } else {
     DBG_MSG("The library has been loaded at %p", this->load_address);
