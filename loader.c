@@ -191,18 +191,18 @@ static elf_object_t * eld_elf_object_new(char *soname, int length) {
   new_elf = calloc(sizeof (char), sizeof (elf_object_t));
 
   if (!new_elf) return NULL;
-
-  if (soname) {
-    new_elf->soname = malloc(length);
-    memcpy(new_elf->soname, soname, length);
-  }
+  new_elf->soname = soname;
 
   return new_elf;
 }
 
 static void eld_elf_object_destroy(elf_object_t *this) {
   if (!this) return;
-  if (this->soname) free(this->soname);
+
+  if (this->dynamic_info_section != &_DYNAMIC) {
+    free(this->load_address);
+  }
+
   free(this);
 }
 
