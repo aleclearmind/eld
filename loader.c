@@ -300,7 +300,7 @@ static int eld_elf_object_find_symbol(elf_object_t *this, char *name,
                                       elf_hash_t hash,
                                       Elf_Sym **match,
                                       elf_object_t **match_elf) {
-  CHECK_ARGS(this && name && match && match_elf);
+  CHECK_ARGS(name && match && match_elf);
 
   // TODO: implement full search in the right order
   // This is a simplified search order, first in the current library, then in
@@ -308,35 +308,43 @@ static int eld_elf_object_find_symbol(elf_object_t *this, char *name,
 
   Elf_Sym *weak_match = NULL;
   elf_object_t *weak_match_elf = NULL;
-  int result = SUCCESS;
-  DBG_MSG("Looking for symbol \"%s\" in the library \"%s\" itself", name,
+  int result = ERROR_SYMBOL_NOT_FOUND;
+
+  if (this) {
+    DBG_MSG("Looking for symbol \"%s\" in the library \"%s\" itself", name,
           this->soname);
-  if ((result =
-       eld_elf_object_get_symbol(this, name, hash, match,
-                                 &weak_match, &weak_match_elf)) == SUCCESS) {
-    *match_elf = this;
-    DBG_MSG("Symbol \"%s\" found in the library \"%s\" itself", name,
-            this->soname);
-  } else {
-    if (result != ERROR_SYMBOL_NOT_FOUND && result != ERROR_WEAK_RESULT) {
+    if ((result =
+	 eld_elf_object_get_symbol(this, name, hash, match,
+				   &weak_match, &weak_match_elf)) == SUCCESS) {
+
+      // TODO: is the following correct?
+      *match_elf = this;
+      DBG_MSG("Symbol \"%s\" found in the library \"%s\" itself", name,
+	      this->soname);
+    } else if (result != ERROR_SYMBOL_NOT_FOUND && result != ERROR_WEAK_RESULT) {
       return result;
     }
-    elf_object_t *loaded_elf = NULL;
+  }
 
-    SLIST_FOREACH(loaded_elf, &elves, next) {
-      DBG_MSG("Looking for symbol \"%s\" in the \"%s\" library", name,
-              loaded_elf->soname);
-      if ((result = eld_elf_object_get_symbol(loaded_elf, name, hash, match,
-                                              &weak_match,
-                                              &weak_match_elf)) == SUCCESS) {
-        *match_elf = loaded_elf;
-        DBG_MSG("Symbol \"%s\" found in the \"%s\" library", name,
-                loaded_elf->soname);
-        break;
-      } else if (result != ERROR_SYMBOL_NOT_FOUND &&
-                 result != ERROR_WEAK_RESULT) {
-        return result;
-      }
+  // Look in all the other elves
+  elf_object_t *loaded_elf = NULL;
+
+  SLIST_FOREACH(loaded_elf, &elves, next) {
+    // Don't check again the suggested ELF
+    if (loaded_elf == this) continue;
+
+    DBG_MSG("Looking for symbol \"%s\" in the \"%s\" library", name,
+	    loaded_elf->soname);
+    if ((result = eld_elf_object_get_symbol(loaded_elf, name, hash, match,
+					    &weak_match,
+					    &weak_match_elf)) == SUCCESS) {
+      *match_elf = loaded_elf;
+      DBG_MSG("Symbol \"%s\" found in the \"%s\" library", name,
+	      loaded_elf->soname);
+      break;
+    } else if (result != ERROR_SYMBOL_NOT_FOUND &&
+	       result != ERROR_WEAK_RESULT) {
+      return result;
     }
   }
 
@@ -675,19 +683,19 @@ static int eld_elf_object_handle_dyn(elf_object_t *this) {
   return SUCCESS;
 }
 
+static int eld_elf_object_is_registered(elf_object_t *this) {
+  elf_object_t *loaded_elf = NULL;
+  SLIST_FOREACH(loaded_elf, &elves, next) {
+    if (loaded_elf == this) return SUCCESS;
+  }
+  return ERROR_LIB_NOT_FOUND;
+}
+
 static int eld_elf_object_close(elf_object_t *this) {
   CHECK_ARGS(this);
 
-  elf_object_t *loaded_elf = NULL;
-
-  SLIST_FOREACH(loaded_elf, &elves, next) {
-    if (loaded_elf == this) {
-      // TODO: this is not efficient
-      SLIST_REMOVE(&elves, this, elf_object, next);
-      eld_elf_object_destroy(this);
-      return SUCCESS;
-    }
-  }
+  SLIST_REMOVE(&elves, this, elf_object, next);
+  eld_elf_object_destroy(this);
 
   return ERROR_LIB_NOT_FOUND;
 }
@@ -717,11 +725,32 @@ static int eld_open(mem_t *library, elf_object_t **library_descriptor) {
   }
 
   *library_descriptor = library_elf;
+  SLIST_INSERT_HEAD(&elves, library_elf, next);
+
+  DBG_MSG("%p correctly loaded: %s", library, library_elf->soname);
   return SUCCESS;
 
 fail:
   if (library_elf) eld_elf_object_destroy(library_elf);
   return result;
+}
+
+void *dlsym(void *handle, char *symbol) {
+  CHECK_ARGS_RET(symbol, 0);
+
+  int result = SUCCESS;
+
+  DBG_MSG("dlsym(%p, %s)", handle, symbol);
+  if (handle) RETURN_NULL_ON_ERROR(eld_elf_object_is_registered(handle));
+
+  Elf_Sym *match = NULL;
+  elf_object_t *match_elf = NULL;
+
+  RETURN_NULL_ON_ERROR(eld_elf_object_find_symbol(handle, symbol,
+						  eld_elf_hash(symbol),
+						  &match, &match_elf));
+
+  return match_elf->elf_offset + match->st_value;
 }
 
 void *dlopen(mem_t *filename, int flag) {
@@ -731,6 +760,16 @@ void *dlopen(mem_t *filename, int flag) {
   // TODO: flags
   int result = SUCCESS;
   mem_t *library = (unsigned char *) filename;
+
+  elf_object_t *loaded_elf = NULL;
+  SLIST_FOREACH(loaded_elf, &elves, next) {
+    if (loaded_elf->file_address == filename) {
+      DBG_MSG("File at %p already registered as \"%s\"", filename,
+	      loaded_elf->soname);
+      return NULL;
+    }
+  }
+
   elf_object_t *library_descriptor = NULL;
 
   RETURN_NULL_ON_ERROR(eld_open(library, &library_descriptor));
@@ -741,6 +780,9 @@ void *dlopen(mem_t *filename, int flag) {
 
 int dlclose(void *handle) {
   CHECK_ARGS(handle);
+  int result = SUCCESS;
+
+  RETURN_ON_ERROR(eld_elf_object_is_registered(handle));
 
   return eld_elf_object_close(handle);
 }
