@@ -1,5 +1,6 @@
 cmake_minimum_required (VERSION 2.6)
 
+# System name
 # If we set the system to Clang/GCC we get "-rdynamic"
 # however we need Linux for dynamic linking stuffs.
 # We should probably create a custom system name
@@ -7,14 +8,34 @@ set(CMAKE_SYSTEM_NAME "Linux-CXX")
 
 project (loader C)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -Wall -Wextra -Wno-unused-variable -Wno-missing-braces -Wno-missing-field-initializers -Wno-unused-function -Wno-unused-parameter -Wno-unused-but-set-variable")
-# XXX: ugly, but CMake seems to remove it if I put it in include_directories
-set(CMAKE_SHARED_LIBRARY_SONAME_C_FLAG "-Wl,-soname,")
-set(CMAKE_SHARED_LINKER_FLAGS "-static")
-set(CMAKE_EXE_LINKER_FLAGS "-Wl,--export-dynamic")
+# Base flags
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -Wall -Wextra")
 
+# Disable some warnings
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-variable")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-missing-braces")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-missing-field-initializers")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-missing-field-initializers")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-function")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-parameter")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-but-set-variable")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-builtin-macro-redefined")
+
+# Use relative paths for the __FILE__ macro
+set(ELD_FILE "'\"$(subst  ${CMAKE_SOURCE_DIR}/,,$(abspath $<))\"'")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D__FILE__=${ELD_FILE}")
+
+# Linker flags
+
+# Force export of all the symbols
+set(CMAKE_EXE_LINKER_FLAGS "-Wl,--export-dynamic")
+# Parameter to specify the soname to ld
+set(CMAKE_SHARED_LIBRARY_SONAME_C_FLAG "-Wl,-soname,")
+
+# Include the binary directory for generated files
 include_directories("${PROJECT_BINARY_DIR}")
 
+# or1k-sim
 set(OR1K_SIM_PATH "or32-elf-sim" CACHE FILEPATH "Path to the OR1K simulator")
 configure_file(sim.cfg sim.cfg COPYONLY)
 
@@ -43,12 +64,13 @@ add_library(your SHARED libyour.c)
 add_library(my SHARED libmy.c)
 target_link_libraries(my your)
 
-# Loader
+# Loader main executable
 add_executable(loader loader.c)
 
 # Simulation targets
-add_custom_target(loader_sim COMMAND timeout 5 ${OR1K_SIM_PATH} -f sim.cfg loader)
-add_custom_target(loader_sim_debug COMMAND ${OR1K_SIM_PATH} -f sim.cfg --srv=9001 loader)
+add_custom_target(loader_sim COMMAND ${OR1K_SIM_PATH} -f sim.cfg loader)
+add_custom_target(loader_sim_debug
+  COMMAND ${OR1K_SIM_PATH} -f sim.cfg --srv=9001 loader)
 
 # Dependencies
 add_dependencies(loader_sim loader)
