@@ -1,6 +1,5 @@
 // TODO: declare we use addends in in symbol table
 // TODO: copy sys/queue.h
-// TODO: copy elf.h
 
 #include <stdint.h>
 #include <string.h>
@@ -14,8 +13,6 @@
 
 // OR1K uses reloc with addend
 #define ELF_USES_RELOCA
-
-// Copy in-house and include the R_OR1K_*
 #include "elf.h"
 
 // OpenRISC 1000 specific relocations

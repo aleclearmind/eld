@@ -9,7 +9,6 @@ project (loader C)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -Wall -Wextra -Wno-unused-variable -Wno-missing-braces -Wno-missing-field-initializers -Wno-unused-function -Wno-unused-parameter -Wno-unused-but-set-variable")
 # XXX: ugly, but CMake seems to remove it if I put it in include_directories
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -I/usr/include")
 set(CMAKE_SHARED_LIBRARY_SONAME_C_FLAG "-Wl,-soname,")
 set(CMAKE_SHARED_LINKER_FLAGS "-static")
 set(CMAKE_EXE_LINKER_FLAGS "-Wl,--export-dynamic")
