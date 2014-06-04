@@ -478,7 +478,7 @@ static int eld_elf_object_load(elf_object_t *this) {
   Elf_Phdr *program_header_begin =
           (Elf_Phdr *) (this->file_address + elf_header->e_phoff);
   Elf_Phdr *program_header_end = program_header_begin + elf_header->e_phnum;
-  Elf_Addr min_address = NULL, max_address = NULL;
+  Elf_Addr min_address = 0, max_address = 0;
   this->dynamic_info_section = NULL;
 
   for (Elf_Phdr *program_header = program_header_begin;
