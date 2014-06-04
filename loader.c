@@ -1,6 +1,10 @@
 // TODO: declare we use addends in in symbol table
 // TODO: copy sys/queue.h
 // TODO: split me
+// TODO: add support for having different address spaces
+// TODO: test with non-function symbols
+// TODO: call fini function
+// TODO: TLS
 
 #include <stdint.h>
 #include <string.h>
