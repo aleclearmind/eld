@@ -22,7 +22,11 @@ int main() {
   typedef int (*myfunc_ptr)();
   myfunc_ptr myfunc = NULL;
   myfunc = dlsym(NULL, "my");
-  printf("%d\n", myfunc());
+
+  int *libyour_variable = dlsym(NULL, "your_variable");
+
+  printf("myfunc() == %d\n", myfunc());
+  printf("your_variable == 0x%x\n", *libyour_variable);
 
   // Close the loaded libraries
   RETURN_ON_ERROR(dlclose(libmy_handle));

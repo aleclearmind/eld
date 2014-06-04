@@ -13,7 +13,6 @@ the previously loaded shared objects are searched in load order.
 
 * Import sys/queue.h
 * Add support for having different address spaces
-* Test dlsym with non-function symbols
 * Call fini function
 * Add support for TLS relocations
 * Let eld_init and eld_finish be called from crt
