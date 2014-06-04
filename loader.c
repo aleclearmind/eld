@@ -17,22 +17,11 @@
 #include "libmy.so.h"
 #include "libyour.so.h"
 
+//// elf-wrapper.h
+
 // OR1K uses reloc with addend
 #define ELF_USES_RELOCA
 #include "elf.h"
-
-
-// Error codes
-// TODO: prefix with ELD_
-#define SUCCESS 0
-#define ERROR_GENERIC 1
-#define ERROR_BAD_ARGS 2
-#define ERROR_LIB_NOT_FOUND 3
-#define ERROR_OUT_OF_MEMORY 4
-#define ERROR_UNEXPECTED_FORMAT 5
-#define ERROR_WEAK_RESULT 6
-#define ERROR_SYMBOL_NOT_FOUND 7
-#define ERROR_UNKNOWN_RELOCATION_TYPE 8
 
 // Things specific to our architecture
 
@@ -61,11 +50,26 @@ typedef uint32_t Elf_MemSz;
 
 // End of things specific to our architecture
 
-typedef unsigned char mem_t;
+//// support.h
+
+// Error codes
+// TODO: prefix with ELD_
+#define SUCCESS 0
+#define ERROR_GENERIC 1
+#define ERROR_BAD_ARGS 2
+#define ERROR_LIB_NOT_FOUND 3
+#define ERROR_OUT_OF_MEMORY 4
+#define ERROR_UNEXPECTED_FORMAT 5
+#define ERROR_WEAK_RESULT 6
+#define ERROR_SYMBOL_NOT_FOUND 7
+#define ERROR_UNKNOWN_RELOCATION_TYPE 8
+
+// TODO: enable some of these only in debug mode
 
 // Proof that macros lead to bad stuffs
 #define DBG_MSG(format, ...) printf("[%s:%d] " format "\n", __FILE__, __LINE__, \
     ##__VA_ARGS__ )
+
 #define CHECK_ARGS_RET(condition, ret) \
   do { \
     if (!(condition)) { \
@@ -73,8 +77,8 @@ typedef unsigned char mem_t;
       return (ret); \
     } \
   } while(0)
-#define CHECK_ARGS(condition) CHECK_ARGS_RET(condition, ERROR_BAD_ARGS)
 
+#define CHECK_ARGS(condition) CHECK_ARGS_RET(condition, ERROR_BAD_ARGS)
 
 // Using this macro leads to loss of information on the error
 #define RETURN_NULL_ON_ERROR(expression)  \
@@ -103,9 +107,12 @@ typedef unsigned char mem_t;
 
 #define STR_PAR(str) (str), (sizeof(str))
 
-typedef Elf_Addr Elf_Addr_Unaligned __attribute__((aligned(1)));
-typedef void (*t_init_function)(void);
-typedef void (*t_fini_function)(void);
+//// common to elf-object.c and eld.c and dl.c
+
+typedef unsigned char mem_t;
+
+// Linker generated symbols
+extern Elf_Dyn _DYNAMIC;
 
 typedef union {
   Elf_Word d_val;
@@ -120,8 +127,6 @@ typedef struct {
   Elf_Word hash_nchains;
   Elf_Word *hash_chains;
 } dynamic_info_t;
-
-
 
 typedef struct elf_object {
   mem_t *file_address;
@@ -142,10 +147,12 @@ typedef struct elf_object {
 typedef SLIST_HEAD(elf_object_list_head, elf_object) elf_object_list_head_t;
 elf_object_list_head_t elves;
 
-typedef unsigned long elf_hash_t;
+//// elf-object.c
 
-// Linker generated symbols
-extern Elf_Dyn _DYNAMIC;
+typedef unsigned long elf_hash_t;
+typedef void (*t_init_function)(void);
+typedef void (*t_fini_function)(void);
+typedef Elf_Addr Elf_Addr_Unaligned __attribute__((aligned(1)));
 
 // Declarations
 static int eld_elf_object_handle_dyn(elf_object_t *this);
@@ -186,40 +193,6 @@ static void eld_elf_object_destroy(elf_object_t *this) {
   }
 
   free(this);
-}
-
-/**
- * Initialize ELF object list
- */
-int eld_init() {
-  int result = SUCCESS;
-  DBG_MSG("Initializing ELD dynamic loader");
-
-  SLIST_INIT(&elves);
-
-  elf_object_t *main_elf = eld_elf_object_new(STR_PAR("main"));
-  RETURN_ON_NULL(main_elf);
-  main_elf->dynamic_info_section = &_DYNAMIC;
-  RETURN_ON_ERROR(eld_elf_object_handle_dyn(main_elf));
-  SLIST_INSERT_HEAD(&elves, main_elf, next);
-
-  return SUCCESS;
-
-}
-
-/**
- * Cleanup ELF object list
- */
-int eld_finish() {
-  elf_object_t *elf = NULL;
-  while (!SLIST_EMPTY(&elves)) {
-    elf = SLIST_FIRST(&elves);
-    SLIST_REMOVE_HEAD(&elves, next);
-    eld_elf_object_destroy(elf);
-  }
-
-  return SUCCESS;
-
 }
 
 static int eld_elf_object_get_symbol(elf_object_t *this, char *target_name,
@@ -685,6 +658,42 @@ static int eld_elf_object_close(elf_object_t *this) {
   return ERROR_LIB_NOT_FOUND;
 }
 
+//// eld.c
+
+/**
+ * Initialize ELF object list
+ */
+int eld_init() {
+  int result = SUCCESS;
+  DBG_MSG("Initializing ELD dynamic loader");
+
+  SLIST_INIT(&elves);
+
+  elf_object_t *main_elf = eld_elf_object_new(STR_PAR("main"));
+  RETURN_ON_NULL(main_elf);
+  main_elf->dynamic_info_section = &_DYNAMIC;
+  RETURN_ON_ERROR(eld_elf_object_handle_dyn(main_elf));
+  SLIST_INSERT_HEAD(&elves, main_elf, next);
+
+  return SUCCESS;
+
+}
+
+/**
+ * Cleanup ELF object list
+ */
+int eld_finish() {
+  elf_object_t *elf = NULL;
+  while (!SLIST_EMPTY(&elves)) {
+    elf = SLIST_FIRST(&elves);
+    SLIST_REMOVE_HEAD(&elves, next);
+    eld_elf_object_destroy(elf);
+  }
+
+  return SUCCESS;
+
+}
+
 /**
  * Load a library already in memory
  * @param library
@@ -719,6 +728,8 @@ fail:
   if (library_elf) eld_elf_object_destroy(library_elf);
   return result;
 }
+
+//// dl.c
 
 void *dlsym(void *handle, char *symbol) {
   CHECK_ARGS_RET(symbol, 0);
@@ -771,6 +782,8 @@ int dlclose(void *handle) {
 
   return eld_elf_object_close(handle);
 }
+
+//// test.c
 
 int main() {
   int result = SUCCESS;
