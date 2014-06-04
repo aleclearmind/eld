@@ -11,6 +11,10 @@ project (loader C)
 # Base flags
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -Wall -Wextra")
 
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-but-set-variable")
+endif()
+
 # Disable some warnings
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-variable")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-missing-braces")
@@ -18,7 +22,6 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-missing-field-initializers")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-missing-field-initializers")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-function")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-parameter")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-but-set-variable")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-builtin-macro-redefined")
 
 # Use relative paths for the __FILE__ macro
