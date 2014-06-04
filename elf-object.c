@@ -40,6 +40,17 @@ void eld_elf_object_destroy(elf_object_t *this) {
   if (!this) return;
 
   if (this->dynamic_info_section != &_DYNAMIC) {
+    // Call the finalization function of the shared object
+    t_fini_function fini_function =
+      (t_fini_function) this->dynamic_info.basic[DT_FINI].d_ptr;
+
+    if (fini_function) {
+      DBG_MSG("Calling fini_function(): %p", fini_function);
+      fini_function();
+      DBG_MSG("fini_function called");
+    }
+
+    // Free the allocated memory
     free(this->load_address);
   }
 
@@ -487,9 +498,11 @@ int eld_elf_object_handle_dyn(elf_object_t *this) {
   t_init_function init_function =
           (t_init_function) this->dynamic_info.basic[DT_INIT].d_ptr;
 
-  DBG_MSG("Calling init_function(): %p", init_function);
-  if (init_function) init_function();
-  DBG_MSG("init_function called");
+  if (init_function) {
+    DBG_MSG("Calling init_function(): %p", init_function);
+    init_function();
+    DBG_MSG("init_function called");
+  }
 
   return SUCCESS;
 }
