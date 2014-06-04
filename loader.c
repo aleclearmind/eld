@@ -660,7 +660,10 @@ static int eld_elf_object_handle_dyn(elf_object_t *this) {
 
   t_init_function init_function =
           (t_init_function) this->dynamic_info.basic[DT_INIT].d_ptr;
+
+  DBG_MSG("Calling init_function(): %p", init_function);
   if (init_function) init_function();
+  DBG_MSG("init_function called");
 
   return SUCCESS;
 }
