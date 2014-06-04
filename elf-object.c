@@ -1,163 +1,14 @@
-// TODO: declare we use addends in in symbol table
-// TODO: copy sys/queue.h
-// TODO: split me
-// TODO: add support for having different address spaces
-// TODO: test with non-function symbols
-// TODO: call fini function
-// TODO: TLS
-
-#include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <inttypes.h>
-#include <assert.h>
-#include <sys/queue.h>
-
-#include "libmy.so.h"
-#include "libyour.so.h"
-
-//// elf-wrapper.h
-
-// OR1K uses reloc with addend
-#define ELF_USES_RELOCA
-#include "elf.h"
-
-// Things specific to our architecture
-
-// TODO: switch to ElfW($)?
-typedef Elf32_Ehdr Elf_Ehdr;
-typedef Elf32_Phdr Elf_Phdr;
-typedef Elf32_Addr Elf_Addr;
-typedef Elf32_Dyn Elf_Dyn;
-typedef Elf32_Word Elf_Word;
-typedef Elf32_Rela Elf_Rela;
-typedef Elf32_Sym Elf_Sym;
-typedef uint32_t Elf_MemSz;
-#define MAX_ADDR UINT32_MAX
-
-#define DT_RELATIVE_RELOC DT_RELA
-#define DT_RELATIVE_RELOC_COUNT DT_RELACOUNT
-
-#define ELF_ST_BIND(val) ELF32_ST_BIND(val)
-#define ELF_ST_TYPE(val) ELF32_ST_TYPE(val)
-#define ELF_R_SYM(i)     ELF32_R_SYM(i)
-#define ELF_R_TYPE(i)    ELF32_R_TYPE(i)
-
-#ifndef ELF_CLASS
-#define ELF_CLASS ELFCLASS32
-#endif
-
-// End of things specific to our architecture
-
-//// support.h
-
-// Error codes
-// TODO: prefix with ELD_
-#define SUCCESS 0
-#define ERROR_GENERIC 1
-#define ERROR_BAD_ARGS 2
-#define ERROR_LIB_NOT_FOUND 3
-#define ERROR_OUT_OF_MEMORY 4
-#define ERROR_UNEXPECTED_FORMAT 5
-#define ERROR_WEAK_RESULT 6
-#define ERROR_SYMBOL_NOT_FOUND 7
-#define ERROR_UNKNOWN_RELOCATION_TYPE 8
-
-// TODO: enable some of these only in debug mode
-
-// Proof that macros lead to bad stuffs
-#define DBG_MSG(format, ...) printf("[%s:%d] " format "\n", __FILE__, __LINE__, \
-    ##__VA_ARGS__ )
-
-#define CHECK_ARGS_RET(condition, ret) \
-  do { \
-    if (!(condition)) { \
-      DBG_MSG("Bad arguments."); \
-      return (ret); \
-    } \
-  } while(0)
-
-#define CHECK_ARGS(condition) CHECK_ARGS_RET(condition, ERROR_BAD_ARGS)
-
-// Using this macro leads to loss of information on the error
-#define RETURN_NULL_ON_ERROR(expression)  \
-  do { \
-    if ((expression) != SUCCESS) { \
-      return NULL; \
-    } \
-  } while (0)
-
-#define ON_ERROR(expression, action) \
-  do { \
-    if ((result = (expression)) != SUCCESS) { \
-      action; \
-    } \
-  } while (0)
-#define RETURN_ON_NULL(expression) \
-  do { \
-    if (!(expression)) return ERROR_GENERIC; \
-  } while(0)
-
-// Assumes a "result" variable has been declared
-#define RETURN_ON_ERROR(expression) ON_ERROR(expression, return result)
-
-// Also assumes in the function there's a "fail" label
-#define FAIL_ON_ERROR(expression) ON_ERROR(expression, goto fail)
-
-#define STR_PAR(str) (str), (sizeof(str))
-
-//// common to elf-object.c and eld.c and dl.c
-
-typedef unsigned char mem_t;
-
-// Linker generated symbols
-extern Elf_Dyn _DYNAMIC;
-
-typedef union {
-  Elf_Word d_val;
-  Elf_Addr d_ptr;
-} Elf_DynValue;
-
-typedef struct {
-  Elf_DynValue basic[DT_NUM];
-  Elf_Word relative_reloc_count;
-  Elf_Word hash_nbuckets;
-  Elf_Word *hash_buckets;
-  Elf_Word hash_nchains;
-  Elf_Word *hash_chains;
-} dynamic_info_t;
-
-typedef struct elf_object {
-  mem_t *file_address;
-  mem_t *load_address;
-  // elf_offset = lib_buffer - min_address
-  // Add this to addresses in the ELF file
-  mem_t *elf_offset;
-
-  char *soname;
-  Elf_Dyn *dynamic_info_section;
-  char *strtab;
-  Elf_Sym *symtab;
-
-  dynamic_info_t dynamic_info;
-  SLIST_ENTRY(elf_object) next;
-} elf_object_t;
-
-typedef SLIST_HEAD(elf_object_list_head, elf_object) elf_object_list_head_t;
-elf_object_list_head_t elves;
-
-//// elf-object.c
+#include "eld.h"
+#include "support.h"
 
 typedef unsigned long elf_hash_t;
 typedef void (*t_init_function)(void);
 typedef void (*t_fini_function)(void);
 typedef Elf_Addr Elf_Addr_Unaligned __attribute__((aligned(1)));
 
-// Declarations
-static int eld_elf_object_handle_dyn(elf_object_t *this);
-
-elf_hash_t eld_elf_hash(char *cursor) {
+static elf_hash_t eld_elf_hash(char *cursor) {
   elf_hash_t result = 0;
   while (*cursor) {
     elf_hash_t tmp;
@@ -175,7 +26,7 @@ elf_hash_t eld_elf_hash(char *cursor) {
  * @param length
  * @return
  */
-static elf_object_t * eld_elf_object_new(char *soname, int length) {
+elf_object_t * eld_elf_object_new(char *soname, int length) {
   elf_object_t *new_elf;
   new_elf = calloc(sizeof (char), sizeof (elf_object_t));
 
@@ -185,7 +36,7 @@ static elf_object_t * eld_elf_object_new(char *soname, int length) {
   return new_elf;
 }
 
-static void eld_elf_object_destroy(elf_object_t *this) {
+void eld_elf_object_destroy(elf_object_t *this) {
   if (!this) return;
 
   if (this->dynamic_info_section != &_DYNAMIC) {
@@ -251,6 +102,7 @@ static int eld_elf_object_get_symbol(elf_object_t *this, char *target_name,
   return ERROR_SYMBOL_NOT_FOUND;
 }
 
+
 static int eld_elf_object_find_symbol(elf_object_t *this, char *name,
                                       elf_hash_t hash,
                                       Elf_Sym **match,
@@ -313,6 +165,13 @@ static int eld_elf_object_find_symbol(elf_object_t *this, char *name,
   if (!match) DBG_MSG("Symbol \"%s\" not found", name);
 
   return match ? SUCCESS : ERROR_SYMBOL_NOT_FOUND;
+}
+
+int eld_elf_object_find_symbol_by_name(elf_object_t *this, char *name,
+				       Elf_Sym **match,
+				       elf_object_t **match_elf) {
+  return eld_elf_object_find_symbol(this, name, eld_elf_hash(name), match,
+				    match_elf);
 }
 
 /**
@@ -416,7 +275,7 @@ static int eld_elf_object_relocate(elf_object_t *this,
  * @param library
  * @return
  */
-static int eld_elf_object_check(elf_object_t *this) {
+int eld_elf_object_check(elf_object_t *this) {
   CHECK_ARGS(this && this->file_address);
 
   Elf_Ehdr *elf_header = (Elf_Ehdr *) this->file_address;
@@ -444,7 +303,7 @@ static int eld_elf_object_check(elf_object_t *this) {
  * @param elf_offset OUT
  * @return
  */
-static int eld_elf_object_load(elf_object_t *this) {
+int eld_elf_object_load(elf_object_t *this) {
   CHECK_ARGS(this && this->file_address);
 
   Elf_Ehdr *elf_header = (Elf_Ehdr *) this->file_address;
@@ -532,7 +391,7 @@ static int eld_elf_object_load(elf_object_t *this) {
  * @param symtab OUT
  * @return
  */
-static int eld_elf_object_handle_dyn(elf_object_t *this) {
+int eld_elf_object_handle_dyn(elf_object_t *this) {
   CHECK_ARGS(this && this->dynamic_info_section);
 
   int result = SUCCESS;
@@ -609,12 +468,6 @@ static int eld_elf_object_handle_dyn(elf_object_t *this) {
     }
   }
 
-  // Create instance of elf_object_t
-  int soname_len = 0;
-  if (this->soname) {
-    soname_len = strlen(this->soname);
-  }
-
   if (this->dynamic_info.basic[DT_HASH].d_ptr) {
 
     Elf_Word *hashtab = (Elf_Word *) this->dynamic_info.basic[DT_HASH].d_ptr;
@@ -641,7 +494,7 @@ static int eld_elf_object_handle_dyn(elf_object_t *this) {
   return SUCCESS;
 }
 
-static int eld_elf_object_is_registered(elf_object_t *this) {
+int eld_elf_object_is_registered(elf_object_t *this) {
   elf_object_t *loaded_elf = NULL;
   SLIST_FOREACH(loaded_elf, &elves, next) {
     if (loaded_elf == this) return SUCCESS;
@@ -649,166 +502,11 @@ static int eld_elf_object_is_registered(elf_object_t *this) {
   return ERROR_LIB_NOT_FOUND;
 }
 
-static int eld_elf_object_close(elf_object_t *this) {
+int eld_elf_object_close(elf_object_t *this) {
   CHECK_ARGS(this);
 
   SLIST_REMOVE(&elves, this, elf_object, next);
   eld_elf_object_destroy(this);
 
   return ERROR_LIB_NOT_FOUND;
-}
-
-//// eld.c
-
-/**
- * Initialize ELF object list
- */
-int eld_init() {
-  int result = SUCCESS;
-  DBG_MSG("Initializing ELD dynamic loader");
-
-  SLIST_INIT(&elves);
-
-  elf_object_t *main_elf = eld_elf_object_new(STR_PAR("main"));
-  RETURN_ON_NULL(main_elf);
-  main_elf->dynamic_info_section = &_DYNAMIC;
-  RETURN_ON_ERROR(eld_elf_object_handle_dyn(main_elf));
-  SLIST_INSERT_HEAD(&elves, main_elf, next);
-
-  return SUCCESS;
-
-}
-
-/**
- * Cleanup ELF object list
- */
-int eld_finish() {
-  elf_object_t *elf = NULL;
-  while (!SLIST_EMPTY(&elves)) {
-    elf = SLIST_FIRST(&elves);
-    SLIST_REMOVE_HEAD(&elves, next);
-    eld_elf_object_destroy(elf);
-  }
-
-  return SUCCESS;
-
-}
-
-/**
- * Load a library already in memory
- * @param library
- * @return
- */
-static int eld_open(mem_t *library, elf_object_t **library_descriptor) {
-  CHECK_ARGS(library && library_descriptor);
-
-  int result = SUCCESS;
-  elf_object_t *library_elf = eld_elf_object_new(NULL, 0);
-  library_elf->file_address = library;
-
-  FAIL_ON_ERROR(eld_elf_object_check(library_elf));
-
-  FAIL_ON_ERROR(eld_elf_object_load(library_elf));
-
-  if (library_elf->dynamic_info_section) {
-    FAIL_ON_ERROR(eld_elf_object_handle_dyn(library_elf));
-  } else {
-    DBG_MSG("Not a dynamic library.");
-    result = ERROR_UNEXPECTED_FORMAT;
-    goto fail;
-  }
-
-  *library_descriptor = library_elf;
-  SLIST_INSERT_HEAD(&elves, library_elf, next);
-
-  DBG_MSG("%p correctly loaded: %s", library, library_elf->soname);
-  return SUCCESS;
-
-fail:
-  if (library_elf) eld_elf_object_destroy(library_elf);
-  return result;
-}
-
-//// dl.c
-
-void *dlsym(void *handle, char *symbol) {
-  CHECK_ARGS_RET(symbol, 0);
-
-  int result = SUCCESS;
-
-  DBG_MSG("dlsym(%p, %s)", handle, symbol);
-  if (handle) RETURN_NULL_ON_ERROR(eld_elf_object_is_registered(handle));
-
-  Elf_Sym *match = NULL;
-  elf_object_t *match_elf = NULL;
-
-  RETURN_NULL_ON_ERROR(eld_elf_object_find_symbol(handle, symbol,
-						  eld_elf_hash(symbol),
-						  &match, &match_elf));
-
-  return match_elf->elf_offset + match->st_value;
-}
-
-void *dlopen(mem_t *filename, int flag) {
-  DBG_MSG("dlopen(%p, %x)", filename, flag);
-  CHECK_ARGS_RET(filename, NULL);
-
-  // TODO: flags
-  int result = SUCCESS;
-  mem_t *library = (unsigned char *) filename;
-
-  elf_object_t *loaded_elf = NULL;
-  SLIST_FOREACH(loaded_elf, &elves, next) {
-    if (loaded_elf->file_address == filename) {
-      DBG_MSG("File at %p already registered as \"%s\"", filename,
-	      loaded_elf->soname);
-      return NULL;
-    }
-  }
-
-  elf_object_t *library_descriptor = NULL;
-
-  RETURN_NULL_ON_ERROR(eld_open(library, &library_descriptor));
-  // TODO: implement dlerror
-
-  return library_descriptor;
-}
-
-int dlclose(void *handle) {
-  CHECK_ARGS(handle);
-  int result = SUCCESS;
-
-  RETURN_ON_ERROR(eld_elf_object_is_registered(handle));
-
-  return eld_elf_object_close(handle);
-}
-
-//// test.c
-
-int main() {
-  int result = SUCCESS;
-
-  // Initialize the ELD library
-  RETURN_ON_ERROR(eld_init());
-
-  // Load libraries
-  void *libyour_handle = NULL;
-  RETURN_ON_NULL(libyour_handle = dlopen(libyour_so, 0));
-
-  void *libmy_handle = NULL;
-  RETURN_ON_NULL(libmy_handle = dlopen(libmy_so, 0));
-
-  typedef int (*myfunc_ptr)();
-  myfunc_ptr myfunc = NULL;
-  myfunc = dlsym(NULL, "my");
-  printf("%d\n", myfunc());
-
-  // Close the loaded libraries
-  RETURN_ON_ERROR(dlclose(libmy_handle));
-  RETURN_ON_ERROR(dlclose(libyour_handle));
-
-  // Finalize the ELD library
-  RETURN_ON_ERROR(eld_finish());
-
-  return result;
 }

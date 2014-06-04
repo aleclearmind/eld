@@ -67,8 +67,11 @@ add_library(your SHARED libyour.c)
 add_library(my SHARED libmy.c)
 target_link_libraries(my your)
 
+add_library(eld STATIC dl.c eld.c elf-object.c)
+
 # Loader main executable
-add_executable(loader loader.c)
+add_executable(loader test.c)
+target_link_libraries(loader eld)
 
 # Simulation targets
 add_custom_target(loader_sim COMMAND ${OR1K_SIM_PATH} -f sim.cfg loader)
