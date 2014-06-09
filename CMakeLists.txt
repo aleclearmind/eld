@@ -44,24 +44,14 @@ include_directories("${PROJECT_BINARY_DIR}")
 set(OR1K_SIM_PATH "or32-elf-sim" CACHE FILEPATH "Path to the OR1K simulator")
 configure_file(sim.cfg sim.cfg COPYONLY)
 
-# Generate .h files to embed shared objects
+add_library(eld STATIC dl.c eld.c elf-object.c)
 
-# libmy.so
-add_custom_command(
-  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/libmy.so.h
-  COMMAND xxd -i libmy.so > libmy.so.h
-  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/libmy.so
-)
-add_custom_target(libmy_header
-  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/libmy.so.h)
+# Loader main executable
+add_executable(loader test.c)
+target_link_libraries(loader eld)
 
 # Create a copy of the loader executable forcing it to a shared object
 # so it can be dynamically linked against other shared libraries
-add_custom_command(
-  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/libyour.so.h
-  COMMAND xxd -i libyour.so > libyour.so.h
-  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/libyour.so
-)
 add_custom_command(
     TARGET loader
     POST_BUILD
@@ -70,34 +60,25 @@ add_custom_command(
     COMMAND dd if=${CMAKE_CURRENT_SOURCE_DIR}/shared-library-id.bin
                of=main seek=16 bs=1 conv=notrunc
 )
-add_custom_target(libyour_header
-  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/libyour.so.h)
 
 # Test dynamic libraries
 add_library(your SHARED libyour.c)
 add_library(my SHARED libmy.c)
-target_link_libraries(my your)
 
-add_library(eld STATIC dl.c eld.c elf-object.c)
-
-# Loader main executable
-add_executable(loader test.c)
-target_link_libraries(loader eld)
 # Link libmy against libyour and the main executable
 target_link_libraries(my your ":main")
 add_dependencies(my loader)
 
 # Simulation targets
-add_custom_target(loader_sim COMMAND ${OR1K_SIM_PATH} -f sim.cfg loader)
+# Use a script to provide the shared objects to the loader on the stdin
+set(FEED_SO ${CMAKE_CURRENT_SOURCE_DIR}/feed-so.py
+  ${CMAKE_CURRENT_BINARY_DIR}/libyour.so
+  ${CMAKE_CURRENT_BINARY_DIR}/libmy.so)
+add_custom_target(loader_sim
+  COMMAND ${FEED_SO} | ${OR1K_SIM_PATH} -f sim.cfg loader)
 add_custom_target(loader_sim_debug
-  COMMAND ${OR1K_SIM_PATH} -f sim.cfg --srv=9001 loader)
+  COMMAND ${FEED_SO} | ${OR1K_SIM_PATH} -f sim.cfg --srv=9001 loader)
 
 # Dependencies
-add_dependencies(loader_sim loader)
-add_dependencies(loader_sim_debug loader)
-
-add_dependencies(loader libmy_header)
-add_dependencies(libmy_header my)
-
-add_dependencies(loader libyour_header)
-add_dependencies(libyour_header your)
+add_dependencies(loader_sim loader my your)
+add_dependencies(loader_sim_debug loader my your)
