@@ -55,11 +55,20 @@ add_custom_command(
 add_custom_target(libmy_header
   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/libmy.so.h)
 
-# libyour.so
+# Create a copy of the loader executable forcing it to a shared object
+# so it can be dynamically linked against other shared libraries
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/libyour.so.h
   COMMAND xxd -i libyour.so > libyour.so.h
   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/libyour.so
+)
+add_custom_command(
+    TARGET loader
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/loader
+                                     ${CMAKE_CURRENT_BINARY_DIR}/main
+    COMMAND dd if=${CMAKE_CURRENT_SOURCE_DIR}/shared-library-id.bin
+               of=main seek=16 bs=1 conv=notrunc
 )
 add_custom_target(libyour_header
   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/libyour.so.h)
@@ -74,6 +83,9 @@ add_library(eld STATIC dl.c eld.c elf-object.c)
 # Loader main executable
 add_executable(loader test.c)
 target_link_libraries(loader eld)
+# Link libmy against libyour and the main executable
+target_link_libraries(my your ":main")
+add_dependencies(my loader)
 
 # Simulation targets
 add_custom_target(loader_sim COMMAND ${OR1K_SIM_PATH} -f sim.cfg loader)

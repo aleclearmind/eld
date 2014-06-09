@@ -1,5 +1,8 @@
+#include <stdio.h>
+
 static int counter = 42;
 extern int your();
+extern void print(int value);
 
 __attribute__((constructor))
 int my() {
@@ -9,5 +12,8 @@ int my() {
 
 __attribute__((destructor))
 void finalization() {
-  counter = 0;
+  print(counter);
+
+  // This should be in the main executable
+  printf("0x%x\n", counter);
 }
