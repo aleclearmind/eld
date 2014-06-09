@@ -50,23 +50,12 @@ add_library(eld STATIC dl.c eld.c elf-object.c)
 add_executable(loader test.c)
 target_link_libraries(loader eld)
 
-# Create a copy of the loader executable forcing it to a shared object
-# so it can be dynamically linked against other shared libraries
-add_custom_command(
-    TARGET loader
-    POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/loader
-                                     ${CMAKE_CURRENT_BINARY_DIR}/main
-    COMMAND dd if=${CMAKE_CURRENT_SOURCE_DIR}/shared-library-id.bin
-               of=main seek=16 bs=1 conv=notrunc
-)
-
 # Test dynamic libraries
 add_library(your SHARED libyour.c)
 add_library(my SHARED libmy.c)
 
 # Link libmy against libyour and the main executable
-target_link_libraries(my your ":main")
+target_link_libraries(my your ":loader")
 add_dependencies(my loader)
 
 # Simulation targets

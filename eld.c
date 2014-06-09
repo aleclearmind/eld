@@ -13,7 +13,7 @@ int eld_init() {
 
   SLIST_INIT(&elves);
 
-  elf_object_t *main_elf = eld_elf_object_new(STR_PAR("main"));
+  elf_object_t *main_elf = eld_elf_object_new(STR_PAR("loader"));
   RETURN_ON_NULL(main_elf);
   main_elf->dynamic_info_section = &_DYNAMIC;
   RETURN_ON_ERROR(eld_elf_object_handle_dyn(main_elf));
