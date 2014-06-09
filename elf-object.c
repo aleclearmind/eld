@@ -515,8 +515,12 @@ int eld_elf_object_is_registered(elf_object_t *this) {
 int eld_elf_object_close(elf_object_t *this) {
   CHECK_ARGS(this);
 
+  int result = SUCCESS;
+
+  RETURN_ON_ERROR(eld_elf_object_is_registered(this));
+
   SLIST_REMOVE(&elves, this, elf_object, next);
   eld_elf_object_destroy(this);
 
-  return ERROR_LIB_NOT_FOUND;
+  return SUCCESS;
 }
