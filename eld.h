@@ -51,3 +51,6 @@ int eld_elf_object_check(elf_object_t *this);
 int eld_elf_object_load(elf_object_t *this);
 
 int eld_open(mem_t *library, elf_object_t **library_descriptor);
+
+__attribute__((constructor)) int eld_init();
+__attribute__((destructor)) int eld_finish();
