@@ -32,6 +32,8 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D__FILE__=${ELD_FILE}")
 
 # Force export of all the symbols
 set(CMAKE_EXE_LINKER_FLAGS "-Wl,--export-dynamic")
+#set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -mboard=or1ksim-uart")
+
 # Parameter to specify the soname to ld
 set(CMAKE_SHARED_LIBRARY_SONAME_C_FLAG "-Wl,-soname,")
 
