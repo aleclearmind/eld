@@ -8,6 +8,13 @@ typedef void (*t_init_function)(void);
 typedef void (*t_fini_function)(void);
 typedef Elf_Addr Elf_Addr_Unaligned __attribute__((aligned(1)));
 
+/**
+ * ELF hash function for quick symbol lookup
+ *
+ * @param cursor the name of the symbol to hash.
+ *
+ * @return the hash of the input symbol name.
+ */
 static elf_hash_t eld_elf_hash(char *cursor) {
   elf_hash_t result = 0;
   while (*cursor) {
@@ -20,12 +27,6 @@ static elf_hash_t eld_elf_hash(char *cursor) {
   return result;
 }
 
-/**
- * Add an ELF to the list
- * @param so_name
- * @param length
- * @return
- */
 elf_object_t * eld_elf_object_new(char *soname, int length) {
   elf_object_t *new_elf;
   new_elf = calloc(sizeof (char), sizeof (elf_object_t));
@@ -54,6 +55,18 @@ void eld_elf_object_destroy(elf_object_t *this) {
   free(this);
 }
 
+/**
+ * Get the symbol matching a specified name.
+ *
+ * @param this the input ELF object descriptor.
+ * @param target_name symbol name.
+ * @param target_hash hash of the symbol name.
+ * @param target_symbol [out] pointer where the matching symbol will be stored.
+ * @param weak_symbol [out] pointer where a weak matching symbol will be stored.
+ * @param weak_elf [out] pointer to where a weak matching ELF will be stored.
+ *
+ * @return zero, if success, non-zero otherwise.
+ */
 static int eld_elf_object_get_symbol(elf_object_t *this, char *target_name,
                                      elf_hash_t target_hash,
                                      Elf_Sym **target_symbol,
@@ -110,7 +123,19 @@ static int eld_elf_object_get_symbol(elf_object_t *this, char *target_name,
   return ERROR_SYMBOL_NOT_FOUND;
 }
 
-
+/**
+ * Look for a symbol in the specified ELF or in one of those it is
+ * depending on.
+ *
+ * @param this the input ELF object descriptor.
+ * @param name symbol name to search.
+ * @param hash hash of the symbol name.
+ * @param match [out] pointer where the matching symbol will be stored.
+ * @param match_elf [out] pointer to where the matching ELF symbol
+ * will be stored.
+ *
+ * @return zero, if success, non-zero otherwise.
+ */
 static int eld_elf_object_find_symbol(elf_object_t *this, char *name,
                                       elf_hash_t hash,
                                       Elf_Sym **match,
@@ -183,12 +208,13 @@ int eld_elf_object_find_symbol_by_name(elf_object_t *this, char *name,
 }
 
 /**
+ * Relocate symbols listed in an ELF section.
  *
- * @param dynamic_info
- * @param reloc_index
- * @param reloc_size_index
- * @param elf_offset
- * @return
+ * @param this the input ELF object descriptor.
+ * @param reloc_index index of the relocation section.
+ * @param reloc_size_index size of the relocation section.
+ *
+ * @return zero, if success, non-zero otherwise.
  */
 static int eld_elf_object_relocate(elf_object_t *this,
                                    int reloc_index, int reloc_size_index) {
@@ -278,11 +304,6 @@ static int eld_elf_object_relocate(elf_object_t *this,
   return SUCCESS;
 }
 
-/**
- *
- * @param library
- * @return
- */
 int eld_elf_object_check(elf_object_t *this) {
   CHECK_ARGS(this && this->file_address);
 
@@ -303,14 +324,6 @@ int eld_elf_object_check(elf_object_t *this) {
   return SUCCESS;
 }
 
-/**
- *
- * @param library OUT
- * @param dynamic_info_offset OUT
- * @param destination OUT
- * @param elf_offset OUT
- * @return
- */
 int eld_elf_object_load(elf_object_t *this) {
   CHECK_ARGS(this && this->file_address);
 
@@ -390,15 +403,6 @@ int eld_elf_object_load(elf_object_t *this) {
   return SUCCESS;
 }
 
-/**
- *
- * @param dynamic_info_begin
- * @param elf_offset
- * @param dynamic_info
- * @param strtab OUT
- * @param symtab OUT
- * @return
- */
 int eld_elf_object_handle_dyn(elf_object_t *this) {
   CHECK_ARGS(this && this->dynamic_info_section);
 

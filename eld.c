@@ -5,6 +5,8 @@ elf_object_list_head_t elves;
 
 /**
  * Initialize ELF object list
+ *
+ * @return zero, if success, non-zero otherwise.
  */
 int eld_init() {
   int result = SUCCESS;
@@ -24,6 +26,8 @@ int eld_init() {
 
 /**
  * Cleanup ELF object list
+ *
+ * @return zero, if success, non-zero otherwise.
  */
 int eld_finish() {
   elf_object_t *elf = NULL;
@@ -37,9 +41,13 @@ int eld_finish() {
 }
 
 /**
- * Load a library already in memory
- * @param library
- * @return
+ * Load a library already in memory.
+ *
+ * @param library pointer to the current position of the ELF file.
+ * @param library_descriptor pointer where a pointer the newly allocated library
+ * descriptor will be stored.
+ *
+ * @return zero, if success, non-zero otherwise.
  */
 int eld_open(mem_t *library, elf_object_t **library_descriptor) {
   CHECK_ARGS(library && library_descriptor);

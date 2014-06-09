@@ -13,12 +13,20 @@ struct {
 } libs[MAX_LIBS] = {0};
 unsigned int lib_count = 0;
 
-// Simple test function to be used by test libraries
+/**
+ * Simple test function to be used by test libraries
+ *
+ * @param value value to print in decimal to stdout.
+ */
 void print(int value) {
   printf("%d\n", value);
 }
 
-// Reads from stdin a 4-byte little endian integer
+/**
+ * Reads from stdin a 4-byte little endian integer
+ *
+ * @return the read integer.
+ */
 int read_length() {
   unsigned int i = 0, result = 0;
   char input = 0;
@@ -31,6 +39,11 @@ int read_length() {
   return result;
 }
 
+/**
+ * Loads libraries reading them from stdin.
+ *
+ * @return zero, if success, non-zero otherwise.
+ */
 int load_libs() {
   int result = SUCCESS;
 
@@ -68,6 +81,11 @@ int load_libs() {
   return result;
 }
 
+/**
+ * Unload the previously loaded libraries.
+ *
+ * @return zero, if success, non-zero otherwise.
+ */
 int unload_libs() {
   int result = SUCCESS;
 

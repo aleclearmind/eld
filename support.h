@@ -15,9 +15,23 @@
 // TODO: enable some of these only in debug mode
 
 // Proof that macros lead to bad stuffs
-#define DBG_MSG(format, ...) printf("[%s:%d] " format "\n", __FILE__, __LINE__, \
-    ##__VA_ARGS__ )
 
+/**
+ * Print a debug message to the standard output.
+ *
+ * @param format format string for the debug message.
+ *
+ * @return amount of written characters.
+ */
+#define DBG_MSG(format, ...) printf("[%s:%d] " format "\n", __FILE__, \
+				    __LINE__, ##__VA_ARGS__ )
+
+/**
+ * Check a condition and fail with an error in case it's false.
+ *
+ * @param condition condition to check.
+ * @param ret value to return in case of failure.
+ */
 #define CHECK_ARGS_RET(condition, ret) \
   do { \
     if (!(condition)) { \
@@ -26,9 +40,20 @@
     } \
   } while(0)
 
+/**
+ * Check a condition and return ERROR_BAD_ARGS in case of failure.
+ *
+ * @param condition condition to check.
+ */
 #define CHECK_ARGS(condition) CHECK_ARGS_RET(condition, ERROR_BAD_ARGS)
 
-// Using this macro leads to loss of information on the error
+/**
+ * Check an expression, if it's different from SUCCESS return NULL.
+ *
+ * @param expression expression to check.
+ *
+ * @note Using this macro leads to loss of information on the error.
+ */
 #define RETURN_NULL_ON_ERROR(expression)  \
   do { \
     if ((expression) != SUCCESS) { \
@@ -36,6 +61,13 @@
     } \
   } while (0)
 
+/**
+ * Check an expression, if it's different from SUCCESS perform the
+ * specified action.
+ *
+ * @param expression expression to check.
+ * @param action action to perform in case of failure.
+ */
 #define ON_ERROR(expression, action) \
   do { \
     if ((result = (expression)) != SUCCESS) { \
@@ -47,10 +79,31 @@
     if (!(expression)) return ERROR_GENERIC; \
   } while(0)
 
-// Assumes a "result" variable has been declared
+/**
+ * Checks an expression, if it's different from SUCCESS return the
+ * `result` variable.
+ *
+ * @param expression expression to check.
+ *
+ * @note Assumes a "result" variable has been declared.
+ */
 #define RETURN_ON_ERROR(expression) ON_ERROR(expression, return result)
 
-// Also assumes in the function there's a "fail" label
+/**
+ * Checks an expression, if it's different from SUCCESS goto the
+ * `fail` label.
+ *
+ * @param expression expression to check.
+ *
+ * @note Also assumes in the function there's a "fail" label.
+ */
 #define FAIL_ON_ERROR(expression) ON_ERROR(expression, goto fail)
 
+/**
+ * Produce a pair of its string parameter and its length.
+ *
+ * @param str a constant string.
+ *
+ * @return a string-size pair.
+ */
 #define STR_PAR(str) (str), (sizeof(str))
