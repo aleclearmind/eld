@@ -11,6 +11,7 @@ the previously loaded shared objects are searched in load order.
 
 ## TODO
 
+* Add support for little endian
 * Import sys/queue.h
 * Add support for having different address spaces
 * Add support for TLS relocations
