@@ -315,9 +315,9 @@ int eld_elf_object_check(elf_object_t *this) {
       elf_header->e_ident[EI_MAG3] != ELFMAG3 ||
       elf_header->e_type != ET_DYN ||
       elf_header->e_machine != EM_OPENRISC ||
-      elf_header->e_ident[EI_DATA] != ELFDATA2MSB) {
+      elf_header->e_ident[EI_DATA] != ELF_ENDIANNESS) {
 
-    DBG_MSG("Not an OpenRISC big-endian ELF dynamic shared object.");
+    DBG_MSG("Not an OpenRISC " ENDIANNESS_NAME " ELF dynamic shared object.");
     return ERROR_UNEXPECTED_FORMAT;
   }
 

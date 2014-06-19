@@ -31,4 +31,12 @@ typedef uint32_t Elf_MemSz;
 #define ELF_CLASS ELFCLASS32
 #endif
 
+#if defined(__or1k__)
+#define ELF_ENDIANNESS ELFDATA2MSB
+#define ENDIANNESS_NAME "big-endian"
+#elif defined(__or1kle__)
+#define ELF_ENDIANNESS ELFDATA2LSB
+#define ENDIANNESS_NAME "little-endian"
+#endif
+
 // End of things specific to our architecture
