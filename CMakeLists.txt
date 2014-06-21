@@ -71,3 +71,10 @@ add_custom_target(loader_sim_debug
 # Dependencies
 add_dependencies(loader_sim loader my your)
 add_dependencies(loader_sim_debug loader my your)
+
+# Install
+install(TARGETS eld
+  RUNTIME DESTINATION bin
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+)
