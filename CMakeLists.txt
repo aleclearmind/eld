@@ -43,6 +43,7 @@ include_directories("${PROJECT_BINARY_DIR}")
 # or1k-sim
 set(OR1K_SIM_PATH "or32-elf-sim" CACHE FILEPATH "Path to the OR1K simulator")
 configure_file(sim.cfg sim.cfg COPYONLY)
+configure_file(dl.h dl.h COPYONLY)
 
 add_library(eld STATIC dl.c eld.c elf-object.c)
 
