@@ -324,6 +324,21 @@ int eld_elf_object_check(elf_object_t *this) {
   return SUCCESS;
 }
 
+/**
+ * malloc-like function used to load the ELF in memory. This function
+ * is defined as weak, feel free to provide your own implementation.
+ *
+ * @param this the input ELF object descriptor.
+ * @param size size, in bytes, to allocate.
+ *
+ * @return a pointer to the newly allocated memory area, or NULL in
+ * case of failure.
+ */
+__attribute__ ((weak))
+void *eld_elf_object_malloc(elf_object_t *this, size_t size) {
+  return malloc(size);
+}
+
 int eld_elf_object_load(elf_object_t *this) {
   CHECK_ARGS(this && this->file_address);
 
@@ -362,7 +377,7 @@ int eld_elf_object_load(elf_object_t *this) {
   }
 
   Elf_MemSz to_allocate = max_address - min_address;
-  this->load_address = malloc(to_allocate);
+  this->load_address = eld_elf_object_malloc(this, to_allocate);
 
   if (!this->load_address) {
     DBG_MSG("Cannot allocate the necessary memory (0x%x bytes)",
