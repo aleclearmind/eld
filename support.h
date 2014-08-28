@@ -11,6 +11,7 @@
 #define ERROR_WEAK_RESULT 6
 #define ERROR_SYMBOL_NOT_FOUND 7
 #define ERROR_UNKNOWN_RELOCATION_TYPE 8
+#define ERROR_RELOCATION_TOO_FAR 9
 
 // TODO: enable some of these only in debug mode
 

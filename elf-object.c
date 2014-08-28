@@ -272,24 +272,43 @@ static int eld_elf_object_relocate(elf_object_t *this,
     }
 
     Elf_Addr symbol_address = (Elf_Addr) (match_elf->elf_offset + match->st_value);
+    int32_t relative_address;
 
     switch (type) {
       case R_OR1K_NONE:
         break;
 
-      case R_OR1K_8:
-      case R_OR1K_16:
       case R_OR1K_32:
         // Support relocations on misaligned offsets
         *((Elf_Addr_Unaligned *) patch_location) = symbol_address +
                 reloc->r_addend;
         break;
 
-      case R_OR1K_8_PCREL:
-      case R_OR1K_16_PCREL:
-      case R_OR1K_32_PCREL:
       case R_OR1K_INSN_REL_26:
-        *patch_location = symbol_address + reloc->r_addend;
+        relative_address = symbol_address +
+          reloc->r_addend - ((uint32_t) patch_location);
+
+        if (relative_address >= (1 << 27) || relative_address < -(1 << 27)) {
+          DBG_MSG("Relocation too far away: from 0x%x to 0x%x (%d).",
+                  (uint32_t) patch_location,
+                  (uint32_t) symbol_address + reloc->r_addend,
+                  (int32_t) relative_address);
+          return ERROR_RELOCATION_TOO_FAR;
+        }
+
+        relative_address >>= 2;
+        *patch_location &= ~((1 << 26) - 1);
+        *patch_location |= relative_address & ((1 << 26) - 1);
+        break;
+
+      case R_OR1K_LO_16_IN_INSN:
+        *patch_location &= 0xffff0000;
+        *patch_location |= (symbol_address + reloc->r_addend) & 0x0000ffff;
+        break;
+
+      case R_OR1K_HI_16_IN_INSN:
+        *patch_location &= 0xffff0000;
+        *patch_location |= ((uint32_t) (symbol_address + reloc->r_addend)) >> 16;
         break;
 
       case R_OR1K_GLOB_DAT:
