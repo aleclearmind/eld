@@ -234,6 +234,7 @@ static int eld_elf_object_relocate(elf_object_t *this,
   int i = 0;
   Elf_Rela *reloc = first_reloc;
   Elf_Addr *patch_location = NULL;
+
   for (; i < relative_reloc_count && i < reloc_count; reloc++, i++) {
 #ifndef NDEBUG
     if (ELF_R_TYPE(reloc->r_info) != R_OR1K_RELATIVE) {
@@ -250,18 +251,25 @@ static int eld_elf_object_relocate(elf_object_t *this,
   for (; i < reloc_count; reloc++, i++) {
     int type = ELF_R_TYPE(reloc->r_info);
     Elf_Sym *symbol = &this->symtab[ELF_R_SYM(reloc->r_info)];
-    char *name = this->strtab + symbol->st_name;
-    patch_location = (Elf_Addr *) (reloc->r_offset + this->elf_offset);
 
-    // Compute the hash
-    elf_hash_t hash = eld_elf_hash(name);
-
-    // Look for the symbol
     Elf_Sym *match = NULL;
     elf_object_t *match_elf = NULL;
+    patch_location = (Elf_Addr *) (reloc->r_offset + this->elf_offset);
 
-    RETURN_ON_ERROR(eld_elf_object_find_symbol(this, name, hash, &match,
-                                               &match_elf));
+    // TODO: check also if it's local
+    if (symbol->st_name != 0) {
+      char *name = this->strtab + symbol->st_name;
+
+      // Compute the hash
+      elf_hash_t hash = eld_elf_hash(name);
+
+      // Look for the symbol
+      RETURN_ON_ERROR(eld_elf_object_find_symbol(this, name, hash, &match,
+						 &match_elf));
+    } else {
+      match = symbol;
+      match_elf = this;
+    }
 
     Elf_Addr symbol_address = (Elf_Addr) (match_elf->elf_offset + match->st_value);
 
