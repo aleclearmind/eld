@@ -40,6 +40,12 @@ set(CMAKE_SHARED_LIBRARY_SONAME_C_FLAG "-Wl,-soname,")
 # Include the binary directory for generated files
 include_directories("${PROJECT_BINARY_DIR}")
 
+# Prefix for dlopen, dlsym...
+set(DL_PREFIX "" CACHE STRING "Prefix for dlopen, dlsym and similar functions")
+if(DL_PREFIX)
+  add_definitions("-DDL_PREFIX=${DL_PREFIX}")
+endif()
+
 # or1k-sim
 set(OR1K_SIM_PATH "or32-elf-sim" CACHE FILEPATH "Path to the OR1K simulator")
 configure_file(sim.cfg sim.cfg COPYONLY)
