@@ -26,6 +26,7 @@ typedef struct {
 typedef struct elf_object {
   mem_t *file_address;
   mem_t *load_address;
+  mem_t *relocation_load_address;
   // elf_offset = lib_buffer - min_address
   // Add this to addresses in the ELF file
   mem_t *elf_offset;

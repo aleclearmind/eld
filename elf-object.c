@@ -271,7 +271,8 @@ static int eld_elf_object_relocate(elf_object_t *this,
       match_elf = this;
     }
 
-    Elf_Addr symbol_address = (Elf_Addr) (match_elf->elf_offset + match->st_value);
+    Elf_Addr symbol_address = (Elf_Addr) (match_elf->relocation_load_address +
+                                          match->st_value);
     int32_t relative_address;
 
     switch (type) {
@@ -352,22 +353,36 @@ int eld_elf_object_check(elf_object_t *this) {
 }
 
 /**
- * malloc-like function used to load the ELF in memory. This function
+ * Allocates a memory area of the specified size to hold the ELF object and
+ * stores its address in this->load_address. Additionally, for greater
+ * flexibility, it also stores in this->relocation_load_address the value to use
+ * as the base address of the library while applying relocations. This function
  * is defined as weak, feel free to provide your own implementation.
  *
  * @param this the input ELF object descriptor.
  * @param size size, in bytes, to allocate.
  *
- * @return a pointer to the newly allocated memory area, or NULL in
- * case of failure.
+ * @return zero, if success, non-zero otherwise.
  */
 __attribute__ ((weak))
-void *eld_elf_object_malloc(elf_object_t *this, size_t size) {
-  return malloc(size);
+int eld_elf_object_allocate(elf_object_t *this, size_t size) {
+
+  this->load_address = malloc(size);
+  this->relocation_load_address = this->load_address;
+
+  if (!this->load_address || !this->relocation_load_address) {
+    DBG_MSG("Cannot allocate the necessary memory (0x%x bytes)",
+	    (unsigned int) size);
+    return ERROR_OUT_OF_MEMORY;
+  }
+
+  return SUCCESS;
 }
 
 int eld_elf_object_load(elf_object_t *this) {
   CHECK_ARGS(this && this->file_address);
+
+  int result = SUCCESS;
 
   Elf_Ehdr *elf_header = (Elf_Ehdr *) this->file_address;
   Elf_Phdr *program_header_begin =
@@ -404,15 +419,11 @@ int eld_elf_object_load(elf_object_t *this) {
   }
 
   Elf_MemSz to_allocate = max_address - min_address;
-  this->load_address = eld_elf_object_malloc(this, to_allocate);
+  RETURN_ON_ERROR(eld_elf_object_allocate(this, to_allocate));
 
-  if (!this->load_address) {
-    DBG_MSG("Cannot allocate the necessary memory (0x%x bytes)",
-	    (unsigned int) to_allocate);
-    return ERROR_OUT_OF_MEMORY;
-  } else {
-    DBG_MSG("The library has been loaded at %p", this->load_address);
-  }
+  DBG_MSG("The library has been loaded at %p, "
+      "relocations will be relative to %p", this->load_address,
+       this->relocation_load_address);
 
   this->elf_offset = this->load_address - min_address;
 
