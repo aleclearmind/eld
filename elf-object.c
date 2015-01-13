@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
+#include <inttypes.h>
 #include "eld.h"
 #include "support.h"
 
@@ -290,8 +291,9 @@ static int eld_elf_object_relocate(elf_object_t *this,
           reloc->r_addend - ((uint32_t) patch_location);
 
         if (relative_address >= (1 << 27) || relative_address < -(1 << 27)) {
-          DBG_MSG("Relocation too far away: from 0x%x to 0x%x (%d).",
-                  (uint32_t) patch_location,
+          DBG_MSG("Relocation too far away: "
+                  "from %p to 0x%" PRIu32 " (%" PRIi32 ").",
+                  patch_location,
                   (uint32_t) symbol_address + reloc->r_addend,
                   (int32_t) relative_address);
           return ERROR_RELOCATION_TOO_FAR;
