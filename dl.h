@@ -1,6 +1,15 @@
 #ifndef DL_H
 #define DL_H
 
+/* Some macros to add support for prefixing dl* functions */
+#ifdef DL_PREFIX
+#  define NAME2(prefix, name) prefix ## _ ## name
+#  define NAME1(prefix, name) NAME2(prefix, name)
+#  define PREFIX(name) NAME1(DL_PREFIX, name)
+#else
+#  define PREFIX(name) name
+#endif
+
 /**
  * Return the address of a dynamic symbol
  *
@@ -10,7 +19,7 @@
  *
  * @return the address of the requested symbol, or NULL if not found.
  */
-void *dlsym(void *handle, char *symbol);
+void *PREFIX(dlsym)(void *handle, char *symbol);
 
 /**
  * Load the specified shared library.
@@ -24,7 +33,7 @@ void *dlsym(void *handle, char *symbol);
  * @return an handle to the loaded library, which can be later used with dlsym
  * and dlclose.
  */
-void *dlopen(char *filename, int flag);
+void *PREFIX(dlopen)(char *filename, int flag);
 
 /**
  * Unloads the specified library.
@@ -33,6 +42,6 @@ void *dlopen(char *filename, int flag);
  *
  * @return zero, if success, non-zero otherwise.
  */
-int dlclose(void *handle);
+int PREFIX(dlclose)(void *handle);
 
 #endif /* DL_H */

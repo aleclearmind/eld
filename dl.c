@@ -1,14 +1,6 @@
 #include "support.h"
 #include "eld.h"
-
-/* Some macro to add support for prefixing dl* functions */
-#ifdef DL_PREFIX
-#  define NAME2(prefix, name) prefix ## _ ## name
-#  define NAME1(prefix, name) NAME2(prefix, name)
-#  define PREFIX(name) NAME1(DL_PREFIX, name)
-#else
-#  define PREFIX(name) name
-#endif
+#include "dl.h"
 
 /**
  * Return the address of a dynamic symbol
